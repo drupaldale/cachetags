@@ -1,0 +1,4 @@
+name = Cache Tags (SQL Schema)
+description = Required for Cache Tags to work.
+package = Caching
+core = 8.x

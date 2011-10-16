@@ -137,6 +137,13 @@ function cache_get_multiple(array &$cids, $bin = 'cache') {
  *     general cache wipe.
  *   - A Unix timestamp: Indicates that the item should be kept at least until
  *     the given time, after which it behaves like CACHE_TEMPORARY.
+ * @param $tags
+ *   An array of tags to be stored with the cache item. These should normally
+ *   identify objects used to build the cache item, which should trigger
+ *   cache invalidation when updated. For example if a cached item represents
+ *   a node, both the node ID and the author's user ID might be passed in as
+ *   tags. For example array('node' => array(123), 'user' => array(92)).
+ *
  */
 function cache_set($cid, $data, $bin = 'cache', $expire = CACHE_PERMANENT, $tags = array()) {
   return cache($bin)->set($cid, $data, $expire, $tags);
@@ -174,8 +181,26 @@ function cache_clear_all($cid = NULL, $bin = NULL, $wildcard = FALSE) {
   return cache($bin)->clear($cid, $wildcard);
 }
 
-function cache_clear_tags($tags, $bin) {
-  return cache($bin)->invalidate($tags);
+function cache_flatten_tags($tags) {
+  $flat_tags = array();
+  foreach ($tags as $namespace => $values) {
+    foreach ($values as $value) {
+      $flat_tags[] = "$namespace:$value";
+    }
+  }
+  return $flat_tags;
+}
+
+function cache_expire_tagged($tags) {
+  $tag_cache = &drupal_static('cache_tag_cache', array());
+  foreach (cache_flatten_tags($tags) as $tag) {
+    unset($tag_cache[$tag]);
+    db_merge('cache_tags')
+      ->key(array('tag' => $tag))
+      ->fields(array('invalidations' => 1))
+      ->expression('invalidations', 'invalidations + 1')
+      ->execute();
+  }
 }
 
 /**
@@ -314,15 +339,6 @@ interface DrupalCacheInterface {
   function deletePrefix($prefix);
 
   /**
-   * Invalidate cached items matching cache tags.
-   *
-   * @param $tags
-   *   An array of tags grouped by namespace. The array follows the same format
-   *   as that used to in DrupalCacheInterface::set().
-   */
-  function invalidate($tags);
-
-  /**
    * Flush all cache items in a bin.
    */
   function flush();
@@ -397,8 +413,6 @@ class DrupalNullCache implements DrupalCacheInterface {
 
   function deletePrefix($prefix) {}
 
-  function invalidate($tags) {}
-
   function flush() {}
 
   function expire() {}
@@ -420,7 +434,6 @@ class DrupalNullCache implements DrupalCacheInterface {
  */
 class DrupalDatabaseCache implements DrupalCacheInterface {
   protected $bin;
-  protected $tags;
 
   function __construct($bin) {
     // All cache tables should be prefixed with 'cache_', apart from the
@@ -512,7 +525,7 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
   }
 
   function set($cid, $data, $expire = CACHE_PERMANENT, $tags = array()) {
-    $tags = $this->flattenTags($tags);
+    $tags = cache_flatten_tags($tags);
     $fields = array(
       'serialized' => 0,
       'created' => REQUEST_TIME,
@@ -534,12 +547,6 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
         ->key(array('cid' => $cid))
         ->fields($fields)
         ->execute();
-      // Set cache data should be immediately gettable by the current process,
-      // even if a tag clear was done in the same second (if the clear came before
-      // the set/get). This bypasses the tag db check for these tags.
-      foreach ($tags as $tag) {
-        $this->tags[$tag] = -1;
-      }
     }
     catch (Exception $e) {
       // The database may not be available, so we'll ignore cache_set requests.
@@ -562,34 +569,14 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
       ->execute();
   }
 
-  function flattenTags($tags) {
-    $flat_tags = array();
-    foreach ($tags as $namespace => $values) {
-      foreach ($values as $value) {
-        $flat_tags[] = "$namespace:$value";
-      }
-    }
-    return $flat_tags;
-  }
-
-  function invalidate($tags) {
-    foreach ($this->flattenTags($tags) as $tag) {
-      unset($this->tags[$tag]);
-      db_merge('cache_tags')
-        ->key(array('tag' => $tag))
-        ->fields(array('invalidations' => 1))
-        ->expression('invalidations', 'invalidations + 1')
-        ->execute();
-    }
-  }
-
   function checksum($flat_tags) {
     $checksum = 0;
+    $tag_cache = &drupal_static('cache_tag_cache', array());
     $query_tags = array();
 
     foreach ($flat_tags as $tag) {
-      if (isset($this->tags[$tag])) {
-        $checksum += $this->tags[$tag];
+      if (isset($tag_cache[$tag])) {
+        $checksum += $tag_cache[$tag];
       }
       else {
         $query_tags[] = $tag;
@@ -597,7 +584,7 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
     }
     if ($query_tags) {
       if ($db_tags = db_query('SELECT tag, invalidations FROM {cache_tags} WHERE tag IN (:tags)', array(':tags' => $query_tags))->fetchAllKeyed()) {
-        $this->tags = array_merge($this->tags, $db_tags);
+        $tag_cache = array_merge($tag_cache, $db_tags);
         $checksum += array_sum($db_tags);
       }
     }
@@ -690,68 +677,5 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
       ->execute()
       ->fetchField();
     return empty($result);
-  }
-
-  /**
-   * Return the schema definition for this cache bin.
-   *
-   * @return
-   *   An array of schema definitions in the format required by hook_schema().
-   */
-  function schema() {
-    $schema[$this->bin] = array(
-      'description' => 'Cache bin for use with DrupalDatabaseCache.',
-      'fields' => array(
-        'cid' => array(
-          'description' => 'Primary Key: Unique cache ID.',
-          'type' => 'varchar',
-          'length' => 255,
-          'not null' => TRUE,
-          'default' => '',
-        ),
-        'data' => array(
-          'description' => 'A collection of data to cache.',
-          'type' => 'blob',
-          'not null' => FALSE,
-          'size' => 'big',
-        ),
-        'expire' => array(
-          'description' => 'A Unix timestamp indicating when the cache entry should expire, or 0 for never.',
-          'type' => 'int',
-          'not null' => TRUE,
-          'default' => 0,
-        ),
-        'created' => array(
-          'description' => 'A Unix timestamp indicating when the cache entry was created.',
-          'type' => 'int',
-          'not null' => TRUE,
-          'default' => 0,
-        ),
-        'serialized' => array(
-          'description' => 'A flag to indicate whether content is serialized (1) or not (0).',
-          'type' => 'int',
-          'size' => 'small',
-          'not null' => TRUE,
-          'default' => 0,
-        ),
-        'tags' => array(
-          'description' => 'Space-separated list of cache tags for this entry.',
-          'type' => 'text',
-          'size' => 'big',
-          'not null' => FALSE,
-        ),
-        'checksum' => array(
-          'description' => 'A Unix timestamp indicating when the cache entry was created.',
-          'type' => 'int',
-          'not null' => TRUE,
-          'default' => 0,
-        ),
-      ),
-      'indexes' => array(
-        'expire' => array('expire'),
-      ),
-      'primary key' => array('cid'),
-    );
-    return $schema;
   }
 }
