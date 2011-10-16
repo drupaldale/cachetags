@@ -181,26 +181,8 @@ function cache_clear_all($cid = NULL, $bin = NULL, $wildcard = FALSE) {
   return cache($bin)->clear($cid, $wildcard);
 }
 
-function cache_flatten_tags($tags) {
-  $flat_tags = array();
-  foreach ($tags as $namespace => $values) {
-    foreach ($values as $value) {
-      $flat_tags[] = "$namespace:$value";
-    }
-  }
-  return $flat_tags;
-}
-
 function cache_expire_tagged($tags) {
-  $tag_cache = &drupal_static('cache_tag_cache', array());
-  foreach (cache_flatten_tags($tags) as $tag) {
-    unset($tag_cache[$tag]);
-    db_merge('cache_tags')
-      ->key(array('tag' => $tag))
-      ->fields(array('invalidations' => 1))
-      ->expression('invalidations', 'invalidations + 1')
-      ->execute();
-  }
+  return cache_tags()->expire($tags);
 }
 
 /**
@@ -512,7 +494,7 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
     // The cache data is invalid if any of its tags have been cleared since.
     if ($cache->tags) {
       $cache->tags = explode(' ', $cache->tags);
-      if ($cache->checksum < $this->checksum($cache->tags)) {
+      if (cache_tags()->isValid($cache->checksum, $cache->tags)) {
         return FALSE;
       }
     }
@@ -525,13 +507,12 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
   }
 
   function set($cid, $data, $expire = CACHE_PERMANENT, $tags = array()) {
-    $tags = cache_flatten_tags($tags);
     $fields = array(
       'serialized' => 0,
       'created' => REQUEST_TIME,
       'expire' => $expire,
-      'tags' => implode(' ', $tags),
-      'checksum' => $this->checksum($tags),
+      'tags' => implode(' ', cache_tags()->flatten($tags)),
+      'checksum' => cache_tags()->checksum($tags),
     );
     if (!is_string($data)) {
       $fields['data'] = serialize($data);
@@ -554,42 +535,25 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
   }
 
   function delete($cid) {
-    $this->deleteMultiple(array($cid));
+    db_delete($this->bin)
+      ->condition('cid', $cid)
+      ->execute();
   }
 
   function deleteMultiple(Array $cids) {
-    db_delete($this->bin)
-      ->condition('cid', $cids, 'IN')
-      ->execute();
+    // Delete in chunks when a large array is passed.
+    do {
+      db_delete($this->bin)
+        ->condition('cid', array_splice($cids, 0, 1000), 'IN')
+        ->execute();
+    }
+    while (count($cids));
   }
 
   function deletePrefix($prefix) {
     db_delete($this->bin)
       ->condition('cid', db_like($prefix) . '%', 'LIKE')
       ->execute();
-  }
-
-  function checksum($flat_tags) {
-    $checksum = 0;
-    $tag_cache = &drupal_static('cache_tag_cache', array());
-    $query_tags = array();
-
-    foreach ($flat_tags as $tag) {
-      if (isset($tag_cache[$tag])) {
-        $checksum += $tag_cache[$tag];
-      }
-      else {
-        $query_tags[] = $tag;
-      }
-    }
-    if ($query_tags) {
-      if ($db_tags = db_query('SELECT tag, invalidations FROM {cache_tags} WHERE tag IN (:tags)', array(':tags' => $query_tags))->fetchAllKeyed()) {
-        $tag_cache = array_merge($tag_cache, $db_tags);
-        $checksum += array_sum($db_tags);
-      }
-    }
-
-    return $checksum;
   }
 
   function flush() {
@@ -678,4 +642,81 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
       ->fetchField();
     return empty($result);
   }
+}
+
+interface DrupalCacheTagsInterface {
+  function __construct();
+
+  function expire($tags);
+
+  function checksum($tags);
+
+  function isValid($checksum, $tags);
+}
+
+abstract class DrupalCacheTags {
+  function __construct() {
+
+  }
+
+  function flatten($tags) {
+    if (isset($tags[0])) return $tags;
+    $flat_tags = array();
+    foreach ($tags as $namespace => $values) {
+      foreach ($values as $value) {
+	$flat_tags[] = "$namespace:$value";
+      }
+    }
+    return $flat_tags;
+  }
+
+  function isValid($checksum, $tags) {
+    return $checksum < $this->checksum($tags);
+  }
+}
+
+class DrupalDatabaseCacheTags extends DrupalCacheTags implements DrupalCacheTagsInterface {
+  protected $tag_cache = array();
+
+  function expire($tags) {
+    foreach ($this->flatten($tags) as $tag) {
+      unset($this->tag_cache[$tag]);
+      db_merge('cache_tags')
+	->key(array('tag' => $tag))
+	->fields(array('invalidations' => 1))
+	->expression('invalidations', 'invalidations + 1')
+	->execute();
+    }
+  }
+
+  function checksum($tags) {
+    $checksum = 0;
+    $query_tags = array();
+
+    foreach ($this->flatten($tags) as $tag) {
+      if (isset($this->tag_cache[$tag])) {
+        $checksum += $this->tag_cache[$tag];
+      }
+      else {
+        $query_tags[] = $tag;
+      }
+    }
+    if ($query_tags) {
+      if ($db_tags = db_query('SELECT tag, invalidations FROM {cache_tags} WHERE tag IN (:tags)', array(':tags' => $query_tags))->fetchAllKeyed()) {
+        $this->tag_cache = array_merge($this->tag_cache, $db_tags);
+        $checksum += array_sum($db_tags);
+      }
+    }
+
+    return $checksum;
+  }
+}
+
+function cache_tags() {
+  $object = &drupal_static(__FUNCTION__);
+  if (!isset($object)) {
+    $class = variable_get('cache_tags_class', 'DrupalDatabaseCacheTags');
+    $object = new $class;
+  }
+  return $object;
 }
