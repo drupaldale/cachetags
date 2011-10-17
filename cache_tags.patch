@@ -1,0 +1,312 @@
+From f5c4ca2cc879bf1f88a5ceb794c46f5fa4aef9fe Mon Sep 17 00:00:00 2001
+From: Carlos Rodriguez <carlos@s8f.org>
+Date: Sun, 16 Oct 2011 15:29:25 -0700
+Subject: [PATCH 1/1] Counter-based cache tags with plugin interface.
+
+---
+ includes/cache-install.inc          |    2 +-
+ includes/cache.inc                  |  116 +++++++++++++++++++++++++++++++++--
+ modules/simpletest/tests/cache.test |   45 ++++++++++++++
+ modules/system/system.install       |   31 +++++++++
+ 4 files changed, 187 insertions(+), 7 deletions(-)
+
+diff --git a/includes/cache-install.inc b/includes/cache-install.inc
+index 8bcf8b7..ae873ba 100644
+--- a/includes/cache-install.inc
++++ b/includes/cache-install.inc
+@@ -23,7 +23,7 @@ class DrupalFakeCache extends DrupalDatabaseCache implements DrupalCacheInterfac
+     return array();
+   }
+ 
+-  function set($cid, $data, $expire = CACHE_PERMANENT) {
++  function set($cid, $data, $expire = CACHE_PERMANENT, $tags = array()) {
+   }
+ 
+   function deletePrefix($cid) {
+diff --git a/includes/cache.inc b/includes/cache.inc
+index fcf3e5e..f1ad85f 100644
+--- a/includes/cache.inc
++++ b/includes/cache.inc
+@@ -137,9 +137,16 @@ function cache_get_multiple(array &$cids, $bin = 'cache') {
+  *     general cache wipe.
+  *   - A Unix timestamp: Indicates that the item should be kept at least until
+  *     the given time, after which it behaves like CACHE_TEMPORARY.
++ * @param $tags
++ *   An array of tags to be stored with the cache item. These should normally
++ *   identify objects used to build the cache item, which should trigger
++ *   cache invalidation when updated. For example if a cached item represents
++ *   a node, both the node ID and the author's user ID might be passed in as
++ *   tags. For example array('node' => array(123), 'user' => array(92)).
++ *
+  */
+-function cache_set($cid, $data, $bin = 'cache', $expire = CACHE_PERMANENT) {
+-  return cache($bin)->set($cid, $data, $expire);
++function cache_set($cid, $data, $bin = 'cache', $expire = CACHE_PERMANENT, $tags = array()) {
++  return cache($bin)->set($cid, $data, $expire, $tags);
+ }
+ 
+ /**
+@@ -174,6 +181,10 @@ function cache_clear_all($cid = NULL, $bin = NULL, $wildcard = FALSE) {
+   return cache($bin)->clear($cid, $wildcard);
+ }
+ 
++function cache_expire_tagged($tags) {
++  return cache_tags()->expire($tags);
++}
++
+ /**
+  * Check if a cache bin is empty.
+  *
+@@ -276,8 +287,14 @@ interface DrupalCacheInterface {
+    *     general cache wipe.
+    *   - A Unix timestamp: Indicates that the item should be kept at least until
+    *     the given time, after which it behaves like CACHE_TEMPORARY.
++   * @param $tags
++   *   An array of tags to be stored with the cache item. These should normally
++   *   identify objects used to build the cache item, which should trigger
++   *   cache invalidation when updated. For example if a cached item represents
++   *   a node, both the node ID and the author's user ID might be passed in as
++   *   tags. For example array('node' => array(123), 'user' => array(92)).
+    */
+-  function set($cid, $data, $expire = CACHE_PERMANENT);
++  function set($cid, $data, $expire = CACHE_PERMANENT, $tags = array());
+ 
+   /**
+    * Delete an item from the cache.
+@@ -370,7 +387,7 @@ class DrupalNullCache implements DrupalCacheInterface {
+     return array();
+   }
+ 
+-  function set($cid, $data, $expire = CACHE_PERMANENT) {}
++  function set($cid, $data, $expire = CACHE_PERMANENT, $tags = array()) {}
+ 
+   function delete($cid) {}
+ 
+@@ -427,7 +444,7 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
+       // is used here only due to the performance overhead we would incur
+       // otherwise. When serving an uncached page, the overhead of using
+       // db_select() is a much smaller proportion of the request.
+-      $result = db_query('SELECT cid, data, created, expire, serialized FROM {' . db_escape_table($this->bin) . '} WHERE cid IN (:cids)', array(':cids' => $cids));
++      $result = db_query('SELECT cid, data, created, expire, serialized, tags, checksum FROM {' . db_escape_table($this->bin) . '} WHERE cid IN (:cids)', array(':cids' => $cids));
+       $cache = array();
+       foreach ($result as $item) {
+         $item = $this->prepareItem($item);
+@@ -474,6 +491,14 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
+       return FALSE;
+     }
+ 
++    // The cache data is invalid if any of its tags have been cleared since.
++    if ($cache->tags) {
++      $cache->tags = explode(' ', $cache->tags);
++      if (cache_tags()->isExpired($cache->checksum, $cache->tags)) {
++        return FALSE;
++      }
++    }
++
+     if ($cache->serialized) {
+       $cache->data = unserialize($cache->data);
+     }
+@@ -481,11 +506,13 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
+     return $cache;
+   }
+ 
+-  function set($cid, $data, $expire = CACHE_PERMANENT) {
++  function set($cid, $data, $expire = CACHE_PERMANENT, $tags = array()) {
+     $fields = array(
+       'serialized' => 0,
+       'created' => REQUEST_TIME,
+       'expire' => $expire,
++      'tags' => implode(' ', cache_tags()->flatten($tags)),
++      'checksum' => cache_tags()->checksum($tags),
+     );
+     if (!is_string($data)) {
+       $fields['data'] = serialize($data);
+@@ -616,3 +643,80 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
+     return empty($result);
+   }
+ }
++
++interface DrupalCacheTagsInterface {
++  function __construct();
++
++  function expire($tags);
++
++  function checksum($tags);
++
++  function isExpired($checksum, $tags);
++}
++
++abstract class DrupalCacheTags {
++  function __construct() {
++
++  }
++
++  function flatten($tags) {
++    if (isset($tags[0])) return $tags;
++    $flat_tags = array();
++    foreach ($tags as $namespace => $values) {
++      foreach ($values as $value) {
++	$flat_tags[] = "$namespace:$value";
++      }
++    }
++    return $flat_tags;
++  }
++
++  function isExpired($checksum, $tags) {
++    return $checksum < $this->checksum($tags);
++  }
++}
++
++class DrupalDatabaseCacheTags extends DrupalCacheTags implements DrupalCacheTagsInterface {
++  protected $tag_cache = array();
++
++  function expire($tags) {
++    foreach ($this->flatten($tags) as $tag) {
++      unset($this->tag_cache[$tag]);
++      db_merge('cache_tags')
++	->key(array('tag' => $tag))
++	->fields(array('invalidations' => 1))
++	->expression('invalidations', 'invalidations + 1')
++	->execute();
++    }
++  }
++
++  function checksum($tags) {
++    $checksum = 0;
++    $query_tags = array();
++
++    foreach ($this->flatten($tags) as $tag) {
++      if (isset($this->tag_cache[$tag])) {
++        $checksum += $this->tag_cache[$tag];
++      }
++      else {
++        $query_tags[] = $tag;
++      }
++    }
++    if ($query_tags) {
++      if ($db_tags = db_query('SELECT tag, invalidations FROM {cache_tags} WHERE tag IN (:tags)', array(':tags' => $query_tags))->fetchAllKeyed()) {
++        $this->tag_cache = array_merge($this->tag_cache, $db_tags);
++        $checksum += array_sum($db_tags);
++      }
++    }
++
++    return $checksum;
++  }
++}
++
++function cache_tags() {
++  $object = &drupal_static(__FUNCTION__);
++  if (!isset($object)) {
++    $class = variable_get('cache_tags_class', 'DrupalDatabaseCacheTags');
++    $object = new $class;
++  }
++  return $object;
++}
+diff --git a/modules/simpletest/tests/cache.test b/modules/simpletest/tests/cache.test
+index 664247b..ab883bd 100644
+--- a/modules/simpletest/tests/cache.test
++++ b/modules/simpletest/tests/cache.test
+@@ -277,6 +277,51 @@ class CacheClearCase extends CacheTestCase {
+   }
+ 
+   /**
++   * Test clearing using cache tags.
++   */
++  function testClearTags() {
++    $cache = cache($this->default_bin);
++    $cache->set('test_cid_clear1', $this->default_value, CACHE_PERMANENT, array('test_tag' => array(1)));
++    $cache->set('test_cid_clear2', $this->default_value, CACHE_PERMANENT, array('test_tag' => array(1)));
++    $this->assertTrue($this->checkCacheExists('test_cid_clear1', $this->default_value)
++                      && $this->checkCacheExists('test_cid_clear2', $this->default_value),
++                      t('Two cache items were created.'));
++    cache_expire_tagged(array('test_tag' => array(1)));
++    $this->assertFalse($this->checkCacheExists('test_cid_clear1', $this->default_value)
++                      || $this->checkCacheExists('test_cid_clear2', $this->default_value),
++                      t('Two caches removed after clearing a cache tag.'));
++
++    $cache->set('test_cid_clear1', $this->default_value, CACHE_PERMANENT, array('test_tag' => array(1)));
++    $cache->set('test_cid_clear2', $this->default_value, CACHE_PERMANENT, array('test_tag' => array(2)));
++    $cache->set('test_cid_clear3', $this->default_value, CACHE_PERMANENT, array('test_tag_foo' => array(3)));
++    $this->assertTrue($this->checkCacheExists('test_cid_clear1', $this->default_value)
++                      && $this->checkCacheExists('test_cid_clear2', $this->default_value)
++                      && $this->checkCacheExists('test_cid_clear3', $this->default_value),
++                      t('Two cached items were created.'));
++    cache_expire_tagged(array('test_tag_foo' => array(3)));
++    $this->assertTrue($this->checkCacheExists('test_cid_clear1', $this->default_value)
++                      && $this->checkCacheExists('test_cid_clear2', $this->default_value),
++                      t('Cached items not matching the tag were not cleared.'));
++
++    $this->assertFalse($this->checkCacheExists('test_cid_clear3', $this->default_value),
++                      t('Cached item matching the tag was removed.'));
++
++    // For our next trick, we will attempt to clear data in multiple bins.
++    $tags = array('test_tag' => array(1, 2, 3));
++    $bins = array('cache', 'cache_page', 'cache_bootstrap');
++    foreach ($bins as $bin) {
++      cache_set('test', $this->default_value, $bin, CACHE_PERMANENT, $tags);
++      $this->assertTrue($this->checkCacheExists('test', $this->default_value, $bin), t('Cache item was set in %bin.', array('%bin' => $bin)));
++    }
++    cache_expire_tagged(array('test_tag' => array(2)));
++    foreach ($bins as $bin) {
++      $this->assertFalse($this->checkCacheExists('test', $this->default_value, $bin), t('Tag expire affected item in %bin.', array('%bin' => $bin)));
++    }
++    $this->assertFalse($this->checkCacheExists('test_cid_clear2', $this->default_value), t('Cached items matching tag were cleared.'));
++    $this->assertTrue($this->checkCacheExists('test_cid_clear1', $this->default_value), t('Cached items not matching tag were not cleared.'));
++  }
++
++  /**
+    * Test clearing using an array.
+    */
+   function testClearArray() {
+diff --git a/modules/system/system.install b/modules/system/system.install
+index 24933e2..42c8054 100644
+--- a/modules/system/system.install
++++ b/modules/system/system.install
+@@ -673,6 +673,18 @@ function system_schema() {
+         'not null' => TRUE,
+         'default' => 0,
+       ),
++      'tags' => array(
++	'description' => 'Space-separated list of cache tags for this entry.',
++	'type' => 'text',
++	'size' => 'big',
++	'not null' => FALSE,
++      ),
++      'checksum' => array(
++	'description' => 'The tag invalidation sum when this entry was saved.',
++	'type' => 'int',
++	'not null' => TRUE,
++	'default' => 0,
++      ),
+     ),
+     'indexes' => array(
+       'expire' => array('expire'),
+@@ -689,6 +701,25 @@ function system_schema() {
+   $schema['cache_menu']['description'] = 'Cache table for the menu system to store router information as well as generated link trees for various menu/page/user combinations.';
+   $schema['cache_path'] = $schema['cache'];
+   $schema['cache_path']['description'] = 'Cache table for path alias lookup.';
++  $schema['cache_tags'] = array(
++    'description' => 'Cache table for tracking cache tags related to the cache bin.',
++    'fields' => array(
++      'tag' => array(
++        'description' => 'Namespace-prefixed tag string.',
++        'type' => 'varchar',
++        'length' => 255,
++        'not null' => TRUE,
++        'default' => '',
++      ),
++      'invalidations' => array(
++        'description' => 'Number incremented when the tag is invalidated.',
++        'type' => 'int',
++        'not null' => TRUE,
++        'default' => 0,
++      ),
++    ),
++    'primary key' => array('tag'),
++  );
+ 
+   $schema['date_format_type'] = array(
+     'description' => 'Stores configured date format types.',
+-- 
+1.7.3.3
+
