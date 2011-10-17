@@ -1,4 +1,4 @@
 name = Cache Tags (SQL Schema)
-description = Required for Cache Tags to work.
+description = Required if using Cache Tags on an existing site install.
 package = Caching
 core = 8.x
