@@ -1,7 +1,7 @@
-From f5c4ca2cc879bf1f88a5ceb794c46f5fa4aef9fe Mon Sep 17 00:00:00 2001
+From c2f641996d5a84e5896f5ccf114892ca6c483691 Mon Sep 17 00:00:00 2001
 From: Carlos Rodriguez <carlos@s8f.org>
-Date: Sun, 16 Oct 2011 15:29:25 -0700
-Subject: [PATCH 1/1] Counter-based cache tags with plugin interface.
+Date: Mon, 17 Oct 2011 16:41:40 -0700
+Subject: [PATCH 1/1] Fix rogue tabbing.
 
 ---
  includes/cache-install.inc          |    2 +-
@@ -24,7 +24,7 @@ index 8bcf8b7..ae873ba 100644
  
    function deletePrefix($cid) {
 diff --git a/includes/cache.inc b/includes/cache.inc
-index fcf3e5e..f1ad85f 100644
+index fcf3e5e..27afdaf 100644
 --- a/includes/cache.inc
 +++ b/includes/cache.inc
 @@ -137,9 +137,16 @@ function cache_get_multiple(array &$cids, $bin = 'cache') {
@@ -46,18 +46,7 @@ index fcf3e5e..f1ad85f 100644
  }
  
  /**
-@@ -174,6 +181,10 @@ function cache_clear_all($cid = NULL, $bin = NULL, $wildcard = FALSE) {
-   return cache($bin)->clear($cid, $wildcard);
- }
- 
-+function cache_expire_tagged($tags) {
-+  return cache_tags()->expire($tags);
-+}
-+
- /**
-  * Check if a cache bin is empty.
-  *
-@@ -276,8 +287,14 @@ interface DrupalCacheInterface {
+@@ -276,8 +283,14 @@ interface DrupalCacheInterface {
     *     general cache wipe.
     *   - A Unix timestamp: Indicates that the item should be kept at least until
     *     the given time, after which it behaves like CACHE_TEMPORARY.
@@ -73,7 +62,7 @@ index fcf3e5e..f1ad85f 100644
  
    /**
     * Delete an item from the cache.
-@@ -370,7 +387,7 @@ class DrupalNullCache implements DrupalCacheInterface {
+@@ -370,7 +383,7 @@ class DrupalNullCache implements DrupalCacheInterface {
      return array();
    }
  
@@ -82,7 +71,7 @@ index fcf3e5e..f1ad85f 100644
  
    function delete($cid) {}
  
-@@ -427,7 +444,7 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
+@@ -427,7 +440,7 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
        // is used here only due to the performance overhead we would incur
        // otherwise. When serving an uncached page, the overhead of using
        // db_select() is a much smaller proportion of the request.
@@ -91,7 +80,7 @@ index fcf3e5e..f1ad85f 100644
        $cache = array();
        foreach ($result as $item) {
          $item = $this->prepareItem($item);
-@@ -474,6 +491,14 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
+@@ -474,6 +487,14 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
        return FALSE;
      }
  
@@ -106,7 +95,7 @@ index fcf3e5e..f1ad85f 100644
      if ($cache->serialized) {
        $cache->data = unserialize($cache->data);
      }
-@@ -481,11 +506,13 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
+@@ -481,11 +502,13 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
      return $cache;
    }
  
@@ -121,7 +110,7 @@ index fcf3e5e..f1ad85f 100644
      );
      if (!is_string($data)) {
        $fields['data'] = serialize($data);
-@@ -616,3 +643,80 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
+@@ -616,3 +639,84 @@ class DrupalDatabaseCache implements DrupalCacheInterface {
      return empty($result);
    }
  }
@@ -146,7 +135,7 @@ index fcf3e5e..f1ad85f 100644
 +    $flat_tags = array();
 +    foreach ($tags as $namespace => $values) {
 +      foreach ($values as $value) {
-+	$flat_tags[] = "$namespace:$value";
++        $flat_tags[] = "$namespace:$value";
 +      }
 +    }
 +    return $flat_tags;
@@ -164,10 +153,10 @@ index fcf3e5e..f1ad85f 100644
 +    foreach ($this->flatten($tags) as $tag) {
 +      unset($this->tag_cache[$tag]);
 +      db_merge('cache_tags')
-+	->key(array('tag' => $tag))
-+	->fields(array('invalidations' => 1))
-+	->expression('invalidations', 'invalidations + 1')
-+	->execute();
++        ->key(array('tag' => $tag))
++        ->fields(array('invalidations' => 1))
++        ->expression('invalidations', 'invalidations + 1')
++        ->execute();
 +    }
 +  }
 +
@@ -201,6 +190,10 @@ index fcf3e5e..f1ad85f 100644
 +    $object = new $class;
 +  }
 +  return $object;
++}
++
++function cache_expire_tagged($tags) {
++  return cache_tags()->expire($tags);
 +}
 diff --git a/modules/simpletest/tests/cache.test b/modules/simpletest/tests/cache.test
 index 664247b..ab883bd 100644
@@ -259,7 +252,7 @@ index 664247b..ab883bd 100644
     */
    function testClearArray() {
 diff --git a/modules/system/system.install b/modules/system/system.install
-index 24933e2..42c8054 100644
+index 24933e2..801abe5 100644
 --- a/modules/system/system.install
 +++ b/modules/system/system.install
 @@ -673,6 +673,18 @@ function system_schema() {
@@ -267,16 +260,16 @@ index 24933e2..42c8054 100644
          'default' => 0,
        ),
 +      'tags' => array(
-+	'description' => 'Space-separated list of cache tags for this entry.',
-+	'type' => 'text',
-+	'size' => 'big',
-+	'not null' => FALSE,
-+      ),
++        'description' => 'Space-separated list of cache tags for this entry.',
++        'type' => 'text',
++        'size' => 'big',
++        'not null' => FALSE,
++       ),
 +      'checksum' => array(
-+	'description' => 'The tag invalidation sum when this entry was saved.',
-+	'type' => 'int',
-+	'not null' => TRUE,
-+	'default' => 0,
++        'description' => 'The tag invalidation sum when this entry was saved.',
++        'type' => 'int',
++        'not null' => TRUE,
++        'default' => 0,
 +      ),
      ),
      'indexes' => array(
@@ -308,5 +301,5 @@ index 24933e2..42c8054 100644
    $schema['date_format_type'] = array(
      'description' => 'Stores configured date format types.',
 -- 
-1.7.3.3
+1.7.4.1
 
