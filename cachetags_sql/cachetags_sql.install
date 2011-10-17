@@ -31,18 +31,18 @@ function cachetags_sql_schema_alter(&$schema) {
   foreach ($schema as $table => &$table_schema) {
     if (strpos($table, 'cache_') === 0 && isset($table_schema['fields']['cid'])) {
       $table_schema['fields'] += array(
-	'tags' => array(
-	  'description' => 'Space-separated list of cache tags for this entry.',
-	  'type' => 'text',
-	  'size' => 'big',
-	  'not null' => FALSE,
-	),
-	'checksum' => array(
-	  'description' => 'The tag invalidation sum when this entry was saved.',
-	  'type' => 'int',
-	  'not null' => TRUE,
-	  'default' => 0,
-	),
+        'tags' => array(
+          'description' => 'Space-separated list of cache tags for this entry.',
+          'type' => 'text',
+          'size' => 'big',
+          'not null' => FALSE,
+        ),
+        'checksum' => array(
+          'description' => 'The tag invalidation sum when this entry was saved.',
+          'type' => 'int',
+          'not null' => TRUE,
+          'default' => 0,
+        ),
       );
     }
   }
@@ -55,23 +55,23 @@ function cachetags_sql_modules_installed($modules) {
   foreach (module_list(TRUE) as $module) {
     foreach (drupal_get_schema_unprocessed($module) as $table => $schema) {
       if (($table == 'cache' || strpos($table, 'cache_') === 0) && isset($schema['fields']['cid'])) {
-	try {
-	  db_add_field($table, 'tags', array(
-	    'description' => 'Space-separated list of cache tags for this entry.',
-	    'type' => 'text',
-	    'size' => 'big',
-	    'not null' => FALSE,
-	  ));
-	  db_add_field($table, 'checksum', array(
-	    'description' => 'The tag invalidation sum when this entry was saved.',
-	    'type' => 'int',
-	    'not null' => TRUE,
-	    'default' => 0,
-	  ));
-	}
-	catch (Exception $e) {
-	  // Field may already be added.
-	}
+        try {
+          db_add_field($table, 'tags', array(
+            'description' => 'Space-separated list of cache tags for this entry.',
+            'type' => 'text',
+            'size' => 'big',
+            'not null' => FALSE,
+          ));
+          db_add_field($table, 'checksum', array(
+            'description' => 'The tag invalidation sum when this entry was saved.',
+            'type' => 'int',
+            'not null' => TRUE,
+            'default' => 0,
+          ));
+        }
+        catch (Exception $e) {
+          // Field may already be added.
+        }
       }
     }
   }

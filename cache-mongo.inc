@@ -44,10 +44,10 @@ class DrupalMongoCache implements DrupalCacheInterface {
       $result = $collection->find($find);
 
       foreach ($result as $item) {
-	$item = $this->prepareItem($item);
-	if ($item) {
-	  $cache[$item->cid] = $item;
-	}
+        $item = $this->prepareItem($item);
+        if ($item) {
+          $cache[$item->cid] = $item;
+        }
       }
     }
     catch (Exception $e) {
@@ -71,12 +71,12 @@ class DrupalMongoCache implements DrupalCacheInterface {
       // Garbage collection necessary when enforcing a minimum cache lifetime.
       $cache_flush = variable_get('cache_flush_' . $this->bin, 0);
       if ($cache_flush && ($cache_flush + variable_get('cache_lifetime', 0) <= REQUEST_TIME)) {
-	// Reset the variable immediately to prevent a meltdown in heavy load situations.
-	variable_set('cache_flush_' . $this->bin, 0);
-	// Time to flush old cache data
+        // Reset the variable immediately to prevent a meltdown in heavy load situations.
+        variable_set('cache_flush_' . $this->bin, 0);
+        // Time to flush old cache data
 
-	$find = array('expire' => array('$lte' => $cache_flush, '$ne' => CACHE_PERMANENT));
-	$collection->remove($find);
+        $find = array('expire' => array('$lte' => $cache_flush, '$ne' => CACHE_PERMANENT));
+        $collection->remove($find);
       }
     }
     catch (Exception $e) {
@@ -147,7 +147,7 @@ class DrupalMongoCache implements DrupalCacheInterface {
     try {
       // Use MongoBinData for non-UTF8 strings.
       if (is_string($entry['data']) && !drupal_validate_utf8($entry['data'])) {
-	$entry['data'] = new MongoBinData($entry['data']);
+        $entry['data'] = new MongoBinData($entry['data']);
       }
       $collection = mongodb_collection($this->bin);
       $collection->save($entry);
@@ -170,8 +170,8 @@ class DrupalMongoCache implements DrupalCacheInterface {
     try {
       // Delete in chunks when a large array is passed.
       do {
-	$find = array('cid' => array('$in' => array_map('strval', array_splice($cids, 0, 1000))));
-	mongodb_collection($this->bin)->remove($find);
+        $find = array('cid' => array('$in' => array_map('strval', array_splice($cids, 0, 1000))));
+        mongodb_collection($this->bin)->remove($find);
       }
       while (count($cids));
     }
@@ -201,29 +201,29 @@ class DrupalMongoCache implements DrupalCacheInterface {
   function expire() {
     try {
       if (variable_get('cache_lifetime', 0)) {
-	global $user;
-	// We store the time in the current user's $user->cache variable which
-	// will be saved into the sessions bin by _drupal_session_write(). We then
-	// simulate that the cache was flushed for this user by not returning
-	// cached data that was cached before the timestamp.
-	$user->cache = REQUEST_TIME;
+        global $user;
+        // We store the time in the current user's $user->cache variable which
+        // will be saved into the sessions bin by _drupal_session_write(). We then
+        // simulate that the cache was flushed for this user by not returning
+        // cached data that was cached before the timestamp.
+        $user->cache = REQUEST_TIME;
 
-	$cache_flush = variable_get('cache_flush_' . $this->bin, 0);
-	if ($cache_flush == 0) {
-	  // This is the first request to clear the cache, start a timer.
-	  variable_set('cache_flush_' . $this->bin, REQUEST_TIME);
-	}
-	elseif (REQUEST_TIME > ($cache_flush + variable_get('cache_lifetime', 0))) {
-	  // Clear the cache for everyone, cache_lifetime seconds have
-	  // passed since the first request to clear the cache.
+        $cache_flush = variable_get('cache_flush_' . $this->bin, 0);
+        if ($cache_flush == 0) {
+          // This is the first request to clear the cache, start a timer.
+          variable_set('cache_flush_' . $this->bin, REQUEST_TIME);
+        }
+        elseif (REQUEST_TIME > ($cache_flush + variable_get('cache_lifetime', 0))) {
+          // Clear the cache for everyone, cache_lifetime seconds have
+          // passed since the first request to clear the cache.
 
-	  mongodb_collection($this->bin)->remove(array('expire' => array('$ne' => CACHE_PERMANENT, '$lte' => REQUEST_TIME)));
-	  variable_set('cache_flush_' . $this->bin, 0);
-	}
+          mongodb_collection($this->bin)->remove(array('expire' => array('$ne' => CACHE_PERMANENT, '$lte' => REQUEST_TIME)));
+          variable_set('cache_flush_' . $this->bin, 0);
+        }
       }
       else {
-	// No minimum cache lifetime, flush all temporary cache entries now.
-	mongodb_collection($this->bin)->remove(array('expire' => array('$ne' => CACHE_PERMANENT, '$lte' => REQUEST_TIME)));
+        // No minimum cache lifetime, flush all temporary cache entries now.
+        mongodb_collection($this->bin)->remove(array('expire' => array('$ne' => CACHE_PERMANENT, '$lte' => REQUEST_TIME)));
       }
     }
     catch (Exception $e) {
@@ -269,8 +269,8 @@ class DrupalMongoCacheTags extends DrupalCacheTags implements DrupalCacheTagsInt
   function expire($tags) {
     try {
       foreach ($this->flatten($tags) as $tag) {
-	unset($this->tag_cache[$tag]);
-	mongodb_collection('cache_tags')->update(array('_id' => $tag), array('$inc' => array('invalidations' => 1)), array('upsert' => TRUE));
+        unset($this->tag_cache[$tag]);
+        mongodb_collection('cache_tags')->update(array('_id' => $tag), array('$inc' => array('invalidations' => 1)), array('upsert' => TRUE));
       }
     }
     catch (Exception $e) {
@@ -292,10 +292,10 @@ class DrupalMongoCacheTags extends DrupalCacheTags implements DrupalCacheTagsInt
     }
     if ($query_tags) {
       try {
-	foreach (mongodb_collection('cache_tags')->find(array('_id' => array('$in' => $query_tags))) as $db_tag) {
-	  $this->tag_cache[$db_tag['_id']] = $db_tag['invalidations'];
-	  $checksum += $db_tag['invalidations'];
-	}
+        foreach (mongodb_collection('cache_tags')->find(array('_id' => array('$in' => $query_tags))) as $db_tag) {
+          $this->tag_cache[$db_tag['_id']] = $db_tag['invalidations'];
+          $checksum += $db_tag['invalidations'];
+        }
       }
       catch (Exception $e) {
 
