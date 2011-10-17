@@ -20,26 +20,39 @@ class DrupalMongoCache implements DrupalCacheInterface {
   }
 
   function get($cid) {
-    $collection = mongodb_collection($this->bin);
-    // Garbage collection necessary when enforcing a minimum cache lifetime.
-    $this->garbageCollection($this->bin);
-    $cache = $collection->findOne(array('_id' => (string)$cid));
+    try {
+      $collection = mongodb_collection($this->bin);
+      // Garbage collection necessary when enforcing a minimum cache lifetime.
+      $this->garbageCollection($this->bin);
+      $cache = $collection->findOne(array('_id' => (string)$cid));
+    }
+    catch (Exception $e) {
+      // Avoid exception crashes and just return nothing.
+      return FALSE;
+    }
     return $this->prepareItem($cache);
   }
 
   function getMultiple(&$cids) {
-    $collection = mongodb_collection($this->bin);
-    // Garbage collection necessary when enforcing a minimum cache lifetime.
-    $this->garbageCollection($this->bin);
-    $find = array();
-    $find['_id']['$in'] = array_map('strval', $cids);
-    $result = $collection->find($find);
     $cache = array();
-    foreach ($result as $item) {
-      $item = $this->prepareItem($item);
-      if ($item) {
-        $cache[$item->cid] = $item;
+    try {
+      $collection = mongodb_collection($this->bin);
+      // Garbage collection necessary when enforcing a minimum cache lifetime.
+      $this->garbageCollection($this->bin);
+      $find = array();
+      $find['_id']['$in'] = array_map('strval', $cids);
+      $result = $collection->find($find);
+
+      foreach ($result as $item) {
+	$item = $this->prepareItem($item);
+	if ($item) {
+	  $cache[$item->cid] = $item;
+	}
       }
+    }
+    catch (Exception $e) {
+      // Avoid exception crashes and just return nothing.
+      return FALSE;
     }
     $cids = array_diff($cids, array_keys($cache));
     return $cache;
@@ -52,18 +65,22 @@ class DrupalMongoCache implements DrupalCacheInterface {
    *   The bin being requested.
    */
   function garbageCollection() {
-    $collection = mongodb_collection($this->bin);
+    try {
+      $collection = mongodb_collection($this->bin);
 
-    // Garbage collection necessary when enforcing a minimum cache lifetime.
-    $cache_flush = variable_get('cache_flush_' . $this->bin, 0);
-    if ($cache_flush && ($cache_flush + variable_get('cache_lifetime', 0) <= REQUEST_TIME)) {
-      // Reset the variable immediately to prevent a meltdown in heavy load situations.
-      variable_set('cache_flush_' . $this->bin, 0);
-      // Time to flush old cache data
+      // Garbage collection necessary when enforcing a minimum cache lifetime.
+      $cache_flush = variable_get('cache_flush_' . $this->bin, 0);
+      if ($cache_flush && ($cache_flush + variable_get('cache_lifetime', 0) <= REQUEST_TIME)) {
+	// Reset the variable immediately to prevent a meltdown in heavy load situations.
+	variable_set('cache_flush_' . $this->bin, 0);
+	// Time to flush old cache data
 
-
-      $find = array('expire' => array('$lte' => $cache_flush, '$ne' => CACHE_PERMANENT));
-      $collection->remove($find);
+	$find = array('expire' => array('$lte' => $cache_flush, '$ne' => CACHE_PERMANENT));
+	$collection->remove($find);
+      }
+    }
+    catch (Exception $e) {
+      // Avoid exception crashes.
     }
   }
 
@@ -87,10 +104,6 @@ class DrupalMongoCache implements DrupalCacheInterface {
     }
     unset($cache['_id']);
     $cache = (object)$cache;
-    // If the data is permanent or we are not enforcing a minimum cache lifetime
-    // always return the cached data.
-    if ($cache->expire == CACHE_PERMANENT || !variable_get('cache_lifetime', 0)) {
-    }
     // If enforcing a minimum cache lifetime, validate that the data is
     // currently valid for this user before we return it by making sure the cache
     // entry was created before the timestamp in the current session's cache
@@ -105,6 +118,10 @@ class DrupalMongoCache implements DrupalCacheInterface {
     // The cache data is invalid if any of its tags have been cleared since.
     if ($cache->tags && cache_tags()->isExpired($cache->checksum, $cache->tags)) {
       return FALSE;
+    }
+
+    if ($cache->data instanceof MongoBinData) {
+      $cache->data = $cache->data->bin;
     }
 
     if ($cache->serialized) {
@@ -127,57 +144,90 @@ class DrupalMongoCache implements DrupalCacheInterface {
       'checksum' => cache_tags()->checksum($tags),
     );
 
-    $collection = mongodb_collection($this->bin);
-
-    $collection->save($entry);
+    try {
+      // Use MongoBinData for non-UTF8 strings.
+      if (is_string($entry['data']) && !drupal_validate_utf8($entry['data'])) {
+	$entry['data'] = new MongoBinData($entry['data']);
+      }
+      $collection = mongodb_collection($this->bin);
+      $collection->save($entry);
+    }
+    catch (Exception $e) {
+      // The database may not be available, so we'll ignore cache_set requests.
+    }
   }
 
   function delete($cid) {
-    mongodb_collection($this->bin)->remove(array('_id' => (string)$cid));
+    try {
+      mongodb_collection($this->bin)->remove(array('_id' => (string)$cid));
+    }
+    catch (Exception $e) {
+
+    }
   }
 
   function deleteMultiple(Array $cids) {
-    // Delete in chunks when a large array is passed.
-    do {
-      $find = array('cid' => array('$in' => array_map('strval', array_splice($cids, 0, 1000))));
-      mongodb_collection($this->bin)->remove($find);
+    try {
+      // Delete in chunks when a large array is passed.
+      do {
+	$find = array('cid' => array('$in' => array_map('strval', array_splice($cids, 0, 1000))));
+	mongodb_collection($this->bin)->remove($find);
+      }
+      while (count($cids));
     }
-    while (count($cids));
+    catch (Exception $e) {
+
+    }
   }
 
   function deletePrefix($prefix) {
-    mongodb_collection($this->bin)->remove(array('_id' => new MongoRegex('/'. preg_quote($prefix, '/') .'/')));
+    try {
+      mongodb_collection($this->bin)->remove(array('_id' => new MongoRegex('/'. preg_quote($prefix, '/') .'/')));
+    }
+    catch (Exception $e) {
+
+    }
   }
 
   function flush() {
-    mongodb_collection($this->bin)->remove();
+    try {
+      mongodb_collection($this->bin)->remove();
+    }
+    catch (Exception $e) {
+
+    }
   }
 
   function expire() {
-    if (variable_get('cache_lifetime', 0)) {
-      global $user;
-      // We store the time in the current user's $user->cache variable which
-      // will be saved into the sessions bin by _drupal_session_write(). We then
-      // simulate that the cache was flushed for this user by not returning
-      // cached data that was cached before the timestamp.
-      $user->cache = REQUEST_TIME;
+    try {
+      if (variable_get('cache_lifetime', 0)) {
+	global $user;
+	// We store the time in the current user's $user->cache variable which
+	// will be saved into the sessions bin by _drupal_session_write(). We then
+	// simulate that the cache was flushed for this user by not returning
+	// cached data that was cached before the timestamp.
+	$user->cache = REQUEST_TIME;
 
-      $cache_flush = variable_get('cache_flush_' . $this->bin, 0);
-      if ($cache_flush == 0) {
-	// This is the first request to clear the cache, start a timer.
-	variable_set('cache_flush_' . $this->bin, REQUEST_TIME);
+	$cache_flush = variable_get('cache_flush_' . $this->bin, 0);
+	if ($cache_flush == 0) {
+	  // This is the first request to clear the cache, start a timer.
+	  variable_set('cache_flush_' . $this->bin, REQUEST_TIME);
+	}
+	elseif (REQUEST_TIME > ($cache_flush + variable_get('cache_lifetime', 0))) {
+	  // Clear the cache for everyone, cache_lifetime seconds have
+	  // passed since the first request to clear the cache.
+
+	  mongodb_collection($this->bin)->remove(array('expire' => array('$ne' => CACHE_PERMANENT, '$lte' => REQUEST_TIME)));
+	  variable_set('cache_flush_' . $this->bin, 0);
+	}
       }
-      elseif (REQUEST_TIME > ($cache_flush + variable_get('cache_lifetime', 0))) {
-	// Clear the cache for everyone, cache_lifetime seconds have
-	// passed since the first request to clear the cache.
-
+      else {
+	// No minimum cache lifetime, flush all temporary cache entries now.
 	mongodb_collection($this->bin)->remove(array('expire' => array('$ne' => CACHE_PERMANENT, '$lte' => REQUEST_TIME)));
-	variable_set('cache_flush_' . $this->bin, 0);
       }
     }
-    else {
-      // No minimum cache lifetime, flush all temporary cache entries now.
-      mongodb_collection($this->bin)->remove(array('expire' => array('$ne' => CACHE_PERMANENT, '$lte' => REQUEST_TIME)));
+    catch (Exception $e) {
+
     }
   }
 
@@ -204,7 +254,12 @@ class DrupalMongoCache implements DrupalCacheInterface {
   }
 
   function isEmpty() {
-    return !mongodb_collection($this->bin)->findOne();
+    try {
+      return !mongodb_collection($this->bin)->findOne();
+    }
+    catch (Exception $e) {
+
+    }
   }
 }
 
@@ -212,9 +267,14 @@ class DrupalMongoCacheTags extends DrupalCacheTags implements DrupalCacheTagsInt
   protected $tag_cache = array();
 
   function expire($tags) {
-    foreach ($this->flatten($tags) as $tag) {
-      unset($this->tag_cache[$tag]);
-      mongodb_collection('cache_tags')->update(array('_id' => $tag), array('$inc' => array('invalidations' => 1)), array('upsert' => TRUE));
+    try {
+      foreach ($this->flatten($tags) as $tag) {
+	unset($this->tag_cache[$tag]);
+	mongodb_collection('cache_tags')->update(array('_id' => $tag), array('$inc' => array('invalidations' => 1)), array('upsert' => TRUE));
+      }
+    }
+    catch (Exception $e) {
+
     }
   }
 
@@ -231,9 +291,14 @@ class DrupalMongoCacheTags extends DrupalCacheTags implements DrupalCacheTagsInt
       }
     }
     if ($query_tags) {
-      foreach (mongodb_collection('cache_tags')->find(array('_id' => array('$in' => $query_tags))) as $db_tag) {
-	$this->tag_cache[$db_tag['_id']] = $db_tag['invalidations'];
-	$checksum += $db_tag['invalidations'];
+      try {
+	foreach (mongodb_collection('cache_tags')->find(array('_id' => array('$in' => $query_tags))) as $db_tag) {
+	  $this->tag_cache[$db_tag['_id']] = $db_tag['invalidations'];
+	  $checksum += $db_tag['invalidations'];
+	}
+      }
+      catch (Exception $e) {
+
       }
     }
 
