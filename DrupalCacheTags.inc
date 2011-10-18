@@ -3,11 +3,11 @@
 interface DrupalCacheTagsInterface {
   function __construct();
 
-  function expire($tags);
+  function invalidate($tags);
 
   function checksum($tags);
 
-  function isExpired($checksum, $tags);
+  function isValid($checksum, $tags);
 }
 
 abstract class DrupalCacheTags {
@@ -26,8 +26,8 @@ abstract class DrupalCacheTags {
     return $flat_tags;
   }
 
-  function isExpired($checksum, $tags) {
-    return $checksum < $this->checksum($tags);
+  function isValid($checksum, $tags) {
+    return $checksum == $this->checksum($tags);
   }
 }
 
@@ -40,6 +40,6 @@ function cache_tags() {
   return $object;
 }
 
-function cache_expire_tagged($tags) {
-  return cache_tags()->expire($tags);
+function cache_invalidate($tags) {
+  return cache_tags()->invalidate($tags);
 }

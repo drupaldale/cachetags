@@ -23,11 +23,11 @@ for ($i = 0; $i < $iterations; $i++) {
 timer_stop('get');
 
 timer_start('expire 1');
-cache_expire_tagged(array('node' => array(3)), 'cache');
+cache_invalidate(array('node' => array(3)), 'cache');
 timer_stop('expire 1');
 
 timer_start('expire 7');
-cache_expire_tagged(array('user' => array(1, 2, 3, 4), 'node' => array(1, 2, 4)), 'cache');
+cache_invalidate(array('user' => array(1, 2, 3, 4), 'node' => array(1, 2, 4)), 'cache');
 //cache_clear_all('test', 'cache', TRUE);
 timer_stop('expire 7');
 

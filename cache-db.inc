@@ -68,7 +68,7 @@ class DrupalDatabaseCacheTagsPlugin extends DrupalDatabaseCache implements Drupa
     // The cache data is invalid if any of its tags have been cleared since.
     if ($cache->tags) {
       $cache->tags = explode(' ', $cache->tags);
-      if (cache_tags()->isExpired($cache->checksum, $cache->tags)) {
+      if (!cache_tags()->isValid($cache->checksum, $cache->tags)) {
         return FALSE;
       }
     }

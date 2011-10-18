@@ -40,7 +40,7 @@ class DrupalMongoCacheTagsPlugin extends DrupalMongoDBCache implements DrupalCac
     }
     
     // The cache data is invalid if any of its tags have been cleared since.
-    if ($cache->tags && cache_tags()->isExpired($cache->checksum, $cache->tags)) {
+    if ($cache->tags && !cache_tags()->isValid($cache->checksum, $cache->tags)) {
       return FALSE;
     }
 
@@ -85,7 +85,7 @@ class DrupalMongoCacheTagsPlugin extends DrupalMongoDBCache implements DrupalCac
 class DrupalMongoCacheTags extends DrupalCacheTags implements DrupalCacheTagsInterface {
   protected $tag_cache = array();
 
-  function expire($tags) {
+  function invalidate($tags) {
     try {
       foreach ($this->flatten($tags) as $tag) {
         unset($this->tag_cache[$tag]);
