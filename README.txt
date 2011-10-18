@@ -3,11 +3,11 @@ Cache Tags
 An experimental project to associate cache entries with metadata, which then
 enables developers to clear caches based on that metadata.
 
-Setup:
+Setup (D7 version):
 
-*  If starting from scratch, (otherwise must have a working D8 install)
+*  If starting from scratch, (otherwise must have a working D7 install)
 
-     git clone --branch 8.x http://git.drupal.org/project/drupal.git
+     git clone --branch 7.x http://git.drupal.org/project/drupal.git
 
 *  Install this project in sites/all/modules/cachetags.
 
