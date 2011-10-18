@@ -11,7 +11,7 @@ $iterations = 10000;
 
 timer_start('set');
 for ($i = 0; $i < $iterations; $i++) {
-  cache_set("test-$i", 1, 'cache', CACHE_PERMANENT, NULL, array('user' => array(1, 2, 3, 4), 'node' => array(1, 2, 3, 4)));
+  cache_set("test-$i", 1, 'cache', CACHE_PERMANENT, array('user' => array(1, 2, 3, 4), 'node' => array(1, 2, 3, 4)));
 }
 timer_stop('set');
 
