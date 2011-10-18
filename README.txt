@@ -5,25 +5,24 @@ enables developers to clear caches based on that metadata.
 
 Setup (D7 version):
 
-*  If starting from scratch, (otherwise must have a working D7 install)
-
-     git clone --branch 7.x http://git.drupal.org/project/drupal.git
-
 *  Install this project in sites/all/modules/cachetags.
 
-*  Apply the core patch:
+*  Apply the core patch (will modify cache_set() to accept $tags):
 
-     git apply sites/all/modules/cachetags/cache_tags.patch
+     git apply sites/all/modules/cachetags/cachetags.patch
 
-*  If starting from scratch, install the site.
+*  If using SQL cache, enable the cachetags_sql module, then add this to your
+   settings.php:
 
-*  If starting with an existing install, enable the cachetags_sql module.
+     $conf['cache_backends'] = array('sites/all/modules/cachetags/cache-db.inc');
+     $conf['cache_default_class'] = 'DrupalDatabaseCacheTagsPlugin';
+     $conf['cache_tags_class'] = 'DrupalDatabaseCacheTags';
 
 *  If using Mongo storage, install http://drupal.org/project/mongodb, (must be
    in sites/all/modules/mongodb) then add this to settings.php:
 
      $conf['cache_backends'] = array('sites/all/modules/cachetags/cache-mongo.inc');
-     $conf['cache_default_class'] = 'DrupalMongoCache';
+     $conf['cache_default_class'] = 'DrupalMongoCacheTagsPlugin';
      $conf['cache_tags_class'] = 'DrupalMongoCacheTags';
 
 *  To test, run the benchmark script:
