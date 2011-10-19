@@ -19,8 +19,13 @@ abstract class DrupalCacheTags {
     if (isset($tags[0])) return $tags;
     $flat_tags = array();
     foreach ($tags as $namespace => $values) {
-      foreach ($values as $value) {
-        $flat_tags[] = "$namespace:$value";
+      if (is_array($values)) {
+        foreach ($values as $value) {
+          $flat_tags[] = "$namespace:$value";
+        }
+      }
+      else {
+        $flat_tags[] = "$namespace:$values";
       }
     }
     return $flat_tags;
