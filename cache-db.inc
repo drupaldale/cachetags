@@ -5,7 +5,7 @@ require_once dirname(__FILE__) . '/DrupalCacheTags.inc';
 /**
  * Overrides to the core database cache, to add cache tag support.
  */
-class DrupalDatabaseCacheTagsPlugin extends DrupalDatabaseCache implements DrupalCacheInterface {
+class DrupalDatabaseCacheTagsPlugin extends DrupalDatabaseCache {
   function getMultiple(&$cids) {
     try {
       // Garbage collection necessary when enforcing a minimum cache lifetime.
@@ -85,7 +85,7 @@ class DrupalDatabaseCacheTagsPlugin extends DrupalDatabaseCache implements Drupa
       'serialized' => 0,
       'created' => REQUEST_TIME,
       'expire' => $expire,
-      'tags' => implode(' ', cache_tags()->flatten($tags)),
+      'tags' => implode(' ', DrupalCacheTags::flatten($tags)),
       'checksum' => cache_tags()->checksum($tags),
     );
     if (!is_string($data)) {
@@ -109,11 +109,14 @@ class DrupalDatabaseCacheTagsPlugin extends DrupalDatabaseCache implements Drupa
   }
 }
 
-class DrupalDatabaseCacheTags extends DrupalCacheTags implements DrupalCacheTagsInterface {
+/**
+ * Default cache tags implementation, using the database.
+ */
+class DrupalDatabaseCacheTags extends DrupalCacheTags {
   protected $tag_cache = array();
 
-  function expire($tags) {
-    foreach ($this->flatten($tags) as $tag) {
+  function invalidate($tags) {
+    foreach (DrupalCacheTags::flatten($tags) as $tag) {
       unset($this->tag_cache[$tag]);
       db_merge('cache_tags')
         ->key(array('tag' => $tag))
@@ -127,7 +130,7 @@ class DrupalDatabaseCacheTags extends DrupalCacheTags implements DrupalCacheTags
     $checksum = 0;
     $query_tags = array();
 
-    foreach ($this->flatten($tags) as $tag) {
+    foreach (DrupalCacheTags::flatten($tags) as $tag) {
       if (isset($this->tag_cache[$tag])) {
         $checksum += $this->tag_cache[$tag];
       }

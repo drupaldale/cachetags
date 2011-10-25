@@ -7,7 +7,7 @@ require_once DRUPAL_ROOT . '/sites/all/modules/mongodb/mongodb_cache/mongodb_cac
 /**
  * Overrides to the Mongo cache, to add cache tag support.
  */
-class DrupalMongoCacheTagsPlugin extends DrupalMongoDBCache implements DrupalCacheInterface {
+class DrupalMongoCacheTagsPlugin extends DrupalMongoDBCache {
   /**
    * Prepare a cached item.
    *
@@ -82,12 +82,12 @@ class DrupalMongoCacheTagsPlugin extends DrupalMongoDBCache implements DrupalCac
   }
 }
 
-class DrupalMongoCacheTags extends DrupalCacheTags implements DrupalCacheTagsInterface {
+class DrupalMongoCacheTags extends DrupalCacheTags {
   protected $tag_cache = array();
 
   function invalidate($tags) {
     try {
-      foreach ($this->flatten($tags) as $tag) {
+      foreach (DrupalCacheTags::flatten($tags) as $tag) {
         unset($this->tag_cache[$tag]);
         mongodb_collection('cache_tags')->update(array('_id' => $tag), array('$inc' => array('invalidations' => 1)), array('upsert' => TRUE));
       }
@@ -101,7 +101,7 @@ class DrupalMongoCacheTags extends DrupalCacheTags implements DrupalCacheTagsInt
     $checksum = 0;
     $query_tags = array();
 
-    foreach ($this->flatten($tags) as $tag) {
+    foreach (DrupalCacheTags::flatten($tags) as $tag) {
       if (isset($this->tag_cache[$tag])) {
         $checksum += $this->tag_cache[$tag];
       }
