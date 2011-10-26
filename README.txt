@@ -25,6 +25,14 @@ Setup (D7 version):
      $conf['cache_default_class'] = 'DrupalMongoCacheTagsPlugin';
      $conf['cache_tags_class'] = 'DrupalMongoCacheTags';
 
+*  If using Memcache, install http://drupal.org/project/memcache, (must be in
+   sites/all/modules/memcache), apply this patch: http://drupal.org/node/1322040,
+   then add this to settings.php:
+
+     $conf['cache_backends'] = array('sites/all/modules/cachetags/cache-memcache.inc');
+     $conf['cache_default_class'] = 'DrupalMemcacheCacheTagsPlugin';
+     $conf['cache_tags_class'] = 'DrupalMemcacheCacheTags';
+
 *  To test, run the benchmark script:
 
      ./sites/all/modules/cachetags/benchmark.sh
