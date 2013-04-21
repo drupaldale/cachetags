@@ -1,5 +1,6 @@
 CacheTags 7.x-2.x-dev, xxxx-xx-xx
 ---------------------------------
+By DamienMcKenna: Updated the README.txt file.
 By dixon_: Removed DrupalCacheTags which now is included in cache.inc.
 By dixon_: Added support for EntityCache, Nodequeue and Panels.
 By dixon_: Added Varnish plugin that enables purging the Varnish cache with help
