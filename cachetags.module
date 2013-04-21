@@ -1,0 +1,72 @@
+<?php
+
+/**
+ * @file
+ * This module is not required to run the Cache Tags cache backend! This module
+ * only provides some useful implementations of contrib hooks.
+ */
+
+/**
+ * Implements hook_ctools_plugin_directory().
+ */
+function cachetags_ctools_plugin_directory($module, $plugin) {
+  if ($module == 'page_manager' || $module == 'panels' || $module == 'ctools') {
+    return 'plugins/' . $plugin;
+  }
+}
+
+/**
+ * Implements hook_entity_view().
+ */
+function cachetags_entity_view($entity, $entity_type) {
+  list($id) = entity_extract_ids($entity_type, $entity);
+  cache_add_request_tags(array($entity_type => array($id)));
+}
+
+/**
+ * Implements hook_entitycache_reset().
+ *
+ * When the cache for a specific entity is cleared, also clear other cache
+ * entries that is tagged with that entity.
+ */
+function cachetags_entitycache_reset($ids, $entity_type) {
+  cache_invalidate(array($entity_type => $ids));
+}
+
+/**
+ * Implements hook_nodequeue_add().
+ */
+function cachetags_nodequeue_add($sqid, $nid = NULL) {
+  $map = nodequeue_get_qid_map();
+  $name = array_search($sqid, $map);
+  cache_invalidate(array('nodequeue' => array($name)));
+}
+
+/**
+ * Implements hook_nodequeue_remove().
+ */
+function cachetags_nodequeue_remove($sqid, $nid = NULL) {
+  // We can reuse this function.
+  cachetags_nodequeue_add($sqid, $nid);
+}
+
+/**
+ * Implements hook_nodequeue_save_subqueue_order_alter().
+ *
+ * This is the best hook to implement when the order of a queue is changed.
+ */
+function cachetags_nodequeue_save_subqueue_order_alter($sqid, $nodes = array()) {
+  // We can reuse this function.
+  cachetags_nodequeue_add($sqid);
+}
+
+/**
+ * Implements hook_flush_caches().
+ */
+function cachetags_flush_caches() {
+  $bins = array();
+  if (module_exists('panels')) {
+    $bins[] = 'cache_cachetags_panels';
+  }
+  return $bins;
+}

@@ -1,5 +1,6 @@
 CacheTags 7.x-2.x-dev, xxxx-xx-xx
 ---------------------------------
+By dixon_: Added support for EntityCache, Nodequeue and Panels.
 By dixon_: Added Varnish plugin that enables purging the Varnish cache with help
   of tags.
 By dixon_: New more sustainable approach to the core patch which also enables

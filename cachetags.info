@@ -1,0 +1,4 @@
+name = Cache Tags
+description = This module is not required to run any of the Cache Tags cache backend! This module only provides some useful implementations of contrib hooks.
+package = Caching
+core = 7.x
