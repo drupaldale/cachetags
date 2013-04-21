@@ -1,16 +1,31 @@
 <?php
+/**
+ * @file
+ *
+ */
 
 /**
  * Implements hook_schema().
  */
 function cachetags_schema() {
   $schema = array();
-  // Panels provides a pluggable caching system, thus not implementing a cache
-  // bin for content caching. Cache Tags provides a cache plugin that makes use
-  // of this bin if the SQL backend is used.
-  if (module_exists('panels')) {
-    $schema['cache_cachetags_panels'] = drupal_get_schema_unprocessed('system', 'cache');
-    $schema['cache_cachetags_panels']['description'] = 'Cache table used to store Panels content objects.';
-  }
+  $schema['cache_cachetags_panels'] = drupal_get_schema_unprocessed('system', 'cache');
+  $schema['cache_cachetags_panels']['description'] = 'Cache table used to store Panels content objects.';
   return $schema;
+}
+
+/**
+ * Implementations of hook_update_N().
+ */
+
+/**
+ * Create the custom Panels cache table.
+ */
+function cachetags_update_7200() {
+  $table = 'cache_cachetags_panels';
+  if (!db_table_exists($table)) {
+    $schema = drupal_get_schema_unprocessed('system', 'cache');
+    $schema['description'] = 'Cache table used to store Panels content objects for cachetags.';
+    db_create($table, $schema);
+  }
 }
