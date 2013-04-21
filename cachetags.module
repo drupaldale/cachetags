@@ -1,5 +1,4 @@
 <?php
-
 /**
  * @file
  * This module is not required to run the Cache Tags cache backend! This module
@@ -19,8 +18,10 @@ function cachetags_ctools_plugin_directory($module, $plugin) {
  * Implements hook_entity_view().
  */
 function cachetags_entity_view($entity, $entity_type) {
-  list($id) = entity_extract_ids($entity_type, $entity);
-  cache_add_request_tags(array($entity_type => array($id)));
+  if (function_exists('cache_add_request_tags')) {
+    list($id) = entity_extract_ids($entity_type, $entity);
+    cache_add_request_tags(array($entity_type => array($id)));
+  }
 }
 
 /**
@@ -30,7 +31,19 @@ function cachetags_entity_view($entity, $entity_type) {
  * entries that is tagged with that entity.
  */
 function cachetags_entitycache_reset($ids, $entity_type) {
-  cache_invalidate(array($entity_type => $ids));
+  if (function_exists('cache_invalidate')) {
+    cache_invalidate(array($entity_type => $ids));
+  }
+}
+
+/**
+ * Submit handler for Draggableviews forms.
+ */
+function cachetags_draggableviews_form_submit($form, $form_state) {
+  if (function_exists('cache_invalidate')) {
+    $view = $form_state['build_info']['args'][0];
+    cache_invalidate(array('views' => $view->name));
+  }
 }
 
 /**

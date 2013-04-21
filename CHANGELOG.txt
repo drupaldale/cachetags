@@ -1,5 +1,6 @@
 CacheTags 7.x-2.x-dev, xxxx-xx-xx
 ---------------------------------
+By dixon_: DraggableViews integration. Fixes in case CacheTags is not running.
 By DamienMcKenna: Rerolled the core patch.
 By dixon_: Improved Panels integration.
 By DamienMcKenna: Updated the README.txt file.
