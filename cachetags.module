@@ -79,7 +79,7 @@ function cachetags_nodequeue_save_subqueue_order_alter($sqid, $nodes = array()) 
 function cachetags_flush_caches() {
   $bins = array();
   if (module_exists('panels')) {
-    $bins[] = 'cache_cachetags_panels';
+    $bins[] = 'cache_tags_panels';
   }
   return $bins;
 }

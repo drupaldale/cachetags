@@ -9,8 +9,8 @@
  */
 function cachetags_schema() {
   $schema = array();
-  $schema['cache_cachetags_panels'] = drupal_get_schema_unprocessed('system', 'cache');
-  $schema['cache_cachetags_panels']['description'] = 'Cache table used to store Panels content objects.';
+  $schema['cache_tags_panels'] = drupal_get_schema_unprocessed('system', 'cache');
+  $schema['cache_tags_panels']['description'] = 'Cache table used to store Panels content objects for cachetags.';
   return $schema;
 }
 
@@ -22,10 +22,41 @@ function cachetags_schema() {
  * Create the custom Panels cache table.
  */
 function cachetags_update_7200() {
-  $table = 'cache_cachetags_panels';
+  $table = 'cache_tags_panels';
   if (!db_table_exists($table)) {
     $schema = drupal_get_schema_unprocessed('system', 'cache');
     $schema['description'] = 'Cache table used to store Panels content objects for cachetags.';
-    db_create($table, $schema);
+    db_create_table($table, $schema);
   }
+}
+
+/**
+ * Rename the custom Panels cache table.
+ */
+function cachetags_update_7201() {
+  // The old table exists.
+  if (db_table_exists('cache_cachetags_panels')) {
+    // If both tables exist, delete the old one.
+    if (db_table_exists('cache_tags_panels')) {
+      db_drop_table('cache_cachetags_panels');
+    }
+    // The new one doesn't exist, rename the old one.
+    else {
+      db_rename_table('cache_cachetags_panels', 'cache_tags_panels');
+    }
+  }
+
+  // The old table doesn't exist, make sure the new one does.
+  else {
+    $table = 'cache_tags_panels';
+    if (!db_table_exists($table)) {
+      $schema = drupal_get_schema_unprocessed('system', 'cache');
+      $schema['description'] = 'Cache table used to store Panels content objects for cachetags.';
+      db_create_table($table, $schema);
+    }
+    else {
+      // Nothing to do, everything's good.
+    }
+  }
+  drupal_set_message(t('The "cache_cachetags_panels" cache table has been renamed to "cache_tags_panels", any customizations to the cache configuration may need to be reviewed.'));
 }

@@ -22,7 +22,7 @@ $plugin = array(
  */
 function cachetags_cache_get($conf, $display, $args, $contexts, $pane = NULL) {
   $cid = cachetags_cid($conf, $display, $args, $contexts, $pane);
-  $cache = cache_get($cid, 'cache_cachetags_panels');
+  $cache = cache_get($cid, 'cache_tags_panels');
   if (!$cache) {
     return FALSE;
   }
@@ -38,7 +38,7 @@ function cachetags_cache_set($conf, $content, $display, $args = array(), $contex
   $tags = empty($content->content->cache_tags) ? array() : $content->content->cache_tags;
   $request_tags = empty($content->content->request_tags) ? array() : $content->content->request_tags;
 
-  cache_set($cid, $content, 'cache_cachetags_panels', CACHE_PERMANENT, $tags, $request_tags);
+  cache_set($cid, $content, 'cache_tags_panels', CACHE_PERMANENT, $tags, $request_tags);
 }
 
 /**
@@ -54,7 +54,7 @@ function cachetags_cache_clear($display) {
   if (isset($display->clear_pane)) {
     $cid .= ':' . $display->clear_pane->pid;
   }
-  cache_clear_all($cid, 'cache_cachetags_panels', TRUE);
+  cache_clear_all($cid, 'cache_tags_panels', TRUE);
 }
 
 /**
