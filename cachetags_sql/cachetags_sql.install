@@ -37,6 +37,12 @@ function cachetags_sql_schema_alter(&$schema) {
           'size' => 'big',
           'not null' => FALSE,
         ),
+        'request_tags' => array(
+          'description' => 'Space-separated list of cache tags for the request this entry is loaded on.',
+          'type' => 'text',
+          'size' => 'big',
+          'not null' => FALSE,
+        ),
         'checksum' => array(
           'description' => 'The tag invalidation sum when this entry was saved.',
           'type' => 'int',
@@ -58,6 +64,12 @@ function cachetags_sql_modules_installed($modules) {
         try {
           db_add_field($table, 'tags', array(
             'description' => 'Space-separated list of cache tags for this entry.',
+            'type' => 'text',
+            'size' => 'big',
+            'not null' => FALSE,
+          ));
+          db_add_field($table, 'request_tags', array(
+            'description' => 'Space-separated list of cache tags for the request this entry is loaded on.',
             'type' => 'text',
             'size' => 'big',
             'not null' => FALSE,

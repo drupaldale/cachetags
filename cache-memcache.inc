@@ -1,6 +1,5 @@
 <?php
 
-require_once dirname(__FILE__) . '/DrupalCacheTags.inc';
 require_once DRUPAL_ROOT . '/sites/all/modules/memcache/memcache.inc';
 
 class DrupalMemcacheCacheTagsPlugin extends MemCacheDrupal {
@@ -13,7 +12,7 @@ class DrupalMemcacheCacheTagsPlugin extends MemCacheDrupal {
     return parent::valid($cid, $cache);
   }
 
-  function set($cid, $data, $expire = CACHE_PERMANENT, $tags = array()) {
+  function set($cid, $data, $expire = CACHE_PERMANENT, $tags = array(), $request_tags = array()) {
     $created = time();
 
     // Create new cache object.
@@ -40,6 +39,7 @@ class DrupalMemcacheCacheTagsPlugin extends MemCacheDrupal {
 
     // Add cache tags.
     $cache->tags = $tags;
+    $cache->request_tags = $request_tags;
     $cache->checksum = cache_tags()->checksum($tags);
 
     // We manually track the expire time in $cache->expire.  When the object

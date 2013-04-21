@@ -1,27 +1,41 @@
-From 20f6a01b46cfa3c09e740c766fc1dc4dd413d160 Mon Sep 17 00:00:00 2001
-From: Carlos Rodriguez <carlos@s8f.org>
-Date: Tue, 18 Oct 2011 11:00:31 -0700
-Subject: [PATCH 1/1] Core patch for D7 cache tags.
+diff --git a/includes/bootstrap.inc b/includes/bootstrap.inc
+index 78f54de..5f9c53d 100644
+--- a/includes/bootstrap.inc
++++ b/includes/bootstrap.inc
+@@ -2214,7 +2214,7 @@ function _drupal_bootstrap_page_cache() {
 
----
- includes/cache.inc |    4 ++--
- 1 files changed, 2 insertions(+), 2 deletions(-)
-
-diff --git a/includes/cache.inc b/includes/cache.inc
-index 8666874..ac235fa 100644
---- a/includes/cache.inc
-+++ b/includes/cache.inc
-@@ -133,8 +133,8 @@ function cache_get_multiple(array &$cids, $bin = 'cache') {
-  *   - A Unix timestamp: Indicates that the item should be kept at least until
-  *     the given time, after which it behaves like CACHE_TEMPORARY.
-  */
--function cache_set($cid, $data, $bin = 'cache', $expire = CACHE_PERMANENT) {
--  return _cache_get_object($bin)->set($cid, $data, $expire);
-+function cache_set($cid, $data, $bin = 'cache', $expire = CACHE_PERMANENT, $tags = array()) {
-+  return _cache_get_object($bin)->set($cid, $data, $expire, $tags);
- }
+   // Allow specifying special cache handlers in settings.php, like
+   // using memcached or files for storing cache information.
+-  require_once DRUPAL_ROOT . '/includes/cache.inc';
++  require_once DRUPAL_ROOT . '/' . variable_get('cache_inc', 'includes/cache.inc');
+   foreach (variable_get('cache_backends', array()) as $include) {
+     require_once DRUPAL_ROOT . '/' . $include;
+   }
+diff --git a/includes/common.inc b/includes/common.inc
+index e3c1cd2..406c085 100644
+--- a/includes/common.inc
++++ b/includes/common.inc
+@@ -4999,6 +4999,10 @@ function drupal_page_set_cache() {
+       if (variable_get('page_compression', TRUE) && extension_loaded('zlib')) {
+         $cache->data['body'] = gzencode($cache->data['body'], 9, FORCE_GZIP);
+       }
++      if (function_exists('cache_get_request_tags')) {
++        cache_set($cache->cid, $cache->data, 'cache_page', $cache->expire, cache_get_request_tags());
++        return $cache;
++      }
+       cache_set($cache->cid, $cache->data, 'cache_page', $cache->expire);
+     }
+     return $cache;
+diff --git a/includes/install.core.inc b/includes/install.core.inc
+index a74dfdf..15ca4ef 100644
+--- a/includes/install.core.inc
++++ b/includes/install.core.inc
+@@ -270,7 +270,7 @@ function install_begin_request(&$install_state) {
+   // continue using the cache implementation they started with) and also
+   // because any data put in the cache during the installer is inherently
+   // suspect, due to the fact that Drupal is not fully set up yet.
+-  require_once DRUPAL_ROOT . '/includes/cache.inc';
++  require_once DRUPAL_ROOT . '/' . variable_get('cache_inc', 'includes/cache.inc');
+   require_once DRUPAL_ROOT . '/includes/cache-install.inc';
+   $conf['cache_default_class'] = 'DrupalFakeCache';
  
- /**
--- 
-1.7.4.1
-

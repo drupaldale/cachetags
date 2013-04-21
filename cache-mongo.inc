@@ -1,6 +1,5 @@
 <?php
 
-require_once dirname(__FILE__) . '/DrupalCacheTags.inc';
 require_once DRUPAL_ROOT . '/sites/all/modules/mongodb/mongodb.module';
 require_once DRUPAL_ROOT . '/sites/all/modules/mongodb/mongodb_cache/mongodb_cache.inc';
 
@@ -55,7 +54,7 @@ class DrupalMongoCacheTagsPlugin extends DrupalMongoDBCache {
     return $cache;
   }
 
-  function set($cid, $data, $expire = CACHE_PERMANENT, $tags = array()) {
+  function set($cid, $data, $expire = CACHE_PERMANENT, $tags = array(), $request_tags = array()) {
     $scalar = is_scalar($data);
     $entry = array(
       '_id' => (string)$cid,
@@ -65,6 +64,7 @@ class DrupalMongoCacheTagsPlugin extends DrupalMongoDBCache {
       'serialized' => !$scalar,
       'data' => $scalar ? $data : serialize($data),
       'tags' => $tags,
+      'request_tags' => $request_tags,
       'checksum' => cache_tags()->checksum($tags),
     );
 
