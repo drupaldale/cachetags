@@ -1,4 +1,4 @@
-name = Cache Tags
-description = This module is not required to run any of the Cache Tags cache backend! This module only provides some useful implementations of contrib hooks.
+name = CacheTags: Contrib
+description = Provides some useful integration with contrib modules. It is not required to run any of the CacheTags cache backends.
 package = Caching
 core = 7.x

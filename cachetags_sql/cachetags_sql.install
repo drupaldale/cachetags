@@ -1,4 +1,8 @@
 <?php
+/**
+ * @file
+ *
+ */
 
 /**
  * Implements hook_schema().
@@ -27,6 +31,9 @@ function cachetags_sql_schema() {
   return $schema;
 }
 
+/**
+ * Implements hook_schema_alter().
+ */
 function cachetags_sql_schema_alter(&$schema) {
   foreach ($schema as $table => &$table_schema) {
     if (strpos($table, 'cache_') === 0 && isset($table_schema['fields']['cid'])) {
@@ -55,7 +62,10 @@ function cachetags_sql_schema_alter(&$schema) {
 }
 
 /**
- * Attaches tags and checksum fields to cache tables when new modules are installed.
+ * Implements hook_modules_installed().
+ *
+ * Attaches tags and checksum fields to cache tables when new modules are
+ * installed.
  */
 function cachetags_sql_modules_installed($modules) {
   foreach (module_list(TRUE) as $module) {
