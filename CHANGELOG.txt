@@ -1,5 +1,6 @@
 CacheTags 7.x-2.x-dev, xxxx-xx-xx
 ---------------------------------
+By dixon_: Improved cache integration, the latest code from Al Jazeera.
 By dixon_, DamienMcKenna: Always install the Panels cache table.
 By dixon_: DraggableViews integration. Fixes in case CacheTags is not running.
 By DamienMcKenna: Rerolled the core patch.

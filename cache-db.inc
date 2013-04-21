@@ -1,6 +1,8 @@
 <?php
-
-require_once dirname(__FILE__) . '/DrupalCacheTags.inc';
+/**
+ * @file
+ * Database cache integration.
+ */
 
 /**
  * Overrides to the core database cache, to add cache tag support.
@@ -106,45 +108,5 @@ class DrupalDatabaseCacheTagsPlugin extends DrupalDatabaseCache {
     catch (Exception $e) {
       // The database may not be available, so we'll ignore cache_set requests.
     }
-  }
-}
-
-/**
- * Default cache tags implementation, using the database.
- */
-class DrupalDatabaseCacheTags extends DrupalCacheTags {
-  protected $tag_cache = array();
-
-  function invalidate($tags) {
-    foreach (DrupalCacheTags::flatten($tags) as $tag) {
-      unset($this->tag_cache[$tag]);
-      db_merge('cache_tags')
-        ->key(array('tag' => $tag))
-        ->fields(array('invalidations' => 1))
-        ->expression('invalidations', 'invalidations + 1')
-        ->execute();
-    }
-  }
-
-  function checksum($tags) {
-    $checksum = 0;
-    $query_tags = array();
-
-    foreach (DrupalCacheTags::flatten($tags) as $tag) {
-      if (isset($this->tag_cache[$tag])) {
-        $checksum += $this->tag_cache[$tag];
-      }
-      else {
-        $query_tags[] = $tag;
-      }
-    }
-    if ($query_tags) {
-      if ($db_tags = db_query('SELECT tag, invalidations FROM {cache_tags} WHERE tag IN (:tags)', array(':tags' => $query_tags))->fetchAllKeyed()) {
-        $this->tag_cache = array_merge($this->tag_cache, $db_tags);
-        $checksum += array_sum($db_tags);
-      }
-    }
-
-    return $checksum;
   }
 }

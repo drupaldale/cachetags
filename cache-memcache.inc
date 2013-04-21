@@ -1,6 +1,10 @@
 <?php
+/**
+ * @file
+ * Memcache integration.
+ */
 
-require_once DRUPAL_ROOT . '/sites/all/modules/memcache/memcache.inc';
+require_once dirname(__FILE__) . '/../memcache/memcache.inc';
 
 class DrupalMemcacheCacheTagsPlugin extends MemCacheDrupal {
 

@@ -1,7 +1,11 @@
 <?php
+/**
+ * @file
+ * Database cache integration.
+ */
 
-require_once DRUPAL_ROOT . '/sites/all/modules/mongodb/mongodb.module';
-require_once DRUPAL_ROOT . '/sites/all/modules/mongodb/mongodb_cache/mongodb_cache.inc';
+require_once DRUPAL_ROOT . '/../mongodb/mongodb.module';
+require_once DRUPAL_ROOT . '/../mongodb/mongodb_cache/mongodb_cache.inc';
 
 /**
  * Overrides to the Mongo cache, to add cache tag support.
@@ -15,6 +19,7 @@ class DrupalMongoCacheTagsPlugin extends DrupalMongoDBCache {
    *
    * @param $cache
    *   An item loaded from cache_get() or cache_get_multiple().
+   *
    * @return
    *   The item with data unserialized as appropriate or FALSE if there is no
    *   valid item to load.
@@ -28,11 +33,11 @@ class DrupalMongoCacheTagsPlugin extends DrupalMongoDBCache {
     unset($cache['_id']);
     $cache = (object)$cache;
     // If enforcing a minimum cache lifetime, validate that the data is
-    // currently valid for this user before we return it by making sure the cache
-    // entry was created before the timestamp in the current session's cache
-    // timer. The cache variable is loaded into the $user object by _drupal_session_read()
-    // in session.inc. If the data is permanent or we're not enforcing a minimum
-    // cache lifetime always return the cached data.
+    // currently valid for this user before we return it by making sure the
+    // cache entry was created before the timestamp in the current session's
+    // cache timer. The cache variable is loaded into the $user object by
+    // _drupal_session_read() in session.inc. If the data is permanent or we're
+    // not enforcing a minimum cache lifetime always return the cached data.
     if ($cache->expire != CACHE_PERMANENT && variable_get('cache_lifetime', 0) && $user->cache > $cache->created) {
       // This cache data is too old and thus not valid for us, ignore it.
       return FALSE;
